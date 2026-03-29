@@ -98,11 +98,32 @@ _TOTAL_LINE_PAT = re.compile(
     re.I,
 )
 
-_groq_client = Groq(api_key=settings.GROQ_API_KEY)
-_gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
+# Initialize LLM clients lazily (only if API keys are set)
+_groq_client = None
+_gemini_client = None
 
 GROQ_MODEL = "llama-3.3-70b-versatile"
 GEMINI_MODEL = "gemini-2.0-flash"
+
+
+def _get_groq_client():
+    """Lazy initialize Groq client only if API key is available."""
+    global _groq_client
+    if _groq_client is None:
+        if not settings.GROQ_API_KEY:
+            raise RuntimeError("GROQ_API_KEY not configured. Set it in environment variables.")
+        _groq_client = Groq(api_key=settings.GROQ_API_KEY)
+    return _groq_client
+
+
+def _get_gemini_client():
+    """Lazy initialize Gemini client only if API key is available."""
+    global _gemini_client
+    if _gemini_client is None:
+        if not settings.GEMINI_API_KEY:
+            raise RuntimeError("GEMINI_API_KEY not configured. Set it in environment variables.")
+        _gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    return _gemini_client
 
 
 _LLM_PROMPT = """Extract these fields from the receipt text and return JSON only:
@@ -208,22 +229,30 @@ def _normalize_ocr_text(text: str) -> str:
 
 async def _groq_extract(text: str) -> dict:
     logger.info("Calling Groq fallback...")
-    resp = _groq_client.chat.completions.create(
-        model=GROQ_MODEL,
-        messages=[{"role": "user", "content": _LLM_PROMPT.format(text=text)}],
-        temperature=0,
-    )
-    return _parse_llm_json(resp.choices[0].message.content)
+    try:
+        client = _get_groq_client()
+        resp = client.chat.completions.create(
+            model=GROQ_MODEL,
+            messages=[{"role": "user", "content": _LLM_PROMPT.format(text=text)}],
+            temperature=0,
+        )
+        return _parse_llm_json(resp.choices[0].message.content)
+    except RuntimeError as e:
+        raise RuntimeError(f"Groq extraction failed: {e}")
 
 
 async def _gemini_extract(text: str) -> dict:
     logger.info("Calling Gemini fallback...")
-    resp = _gemini_client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=_LLM_PROMPT.format(text=text),
-        config=types.GenerateContentConfig(temperature=0),
-    )
-    return _parse_llm_json(resp.text)
+    try:
+        client = _get_gemini_client()
+        resp = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=_LLM_PROMPT.format(text=text),
+            config=types.GenerateContentConfig(temperature=0),
+        )
+        return _parse_llm_json(resp.text)
+    except RuntimeError as e:
+        raise RuntimeError(f"Gemini extraction failed: {e}")
 
 
 def _aggregate_spans(word_preds: dict[int, tuple[str, float, str]]) -> list[tuple[str, str, float]]:

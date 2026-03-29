@@ -1,10 +1,14 @@
 from pydantic_settings import BaseSettings
+from typing import Optional
 
 
 class Settings(BaseSettings):
-    GROQ_API_KEY: str
-    GEMINI_API_KEY: str
-    MONGODB_URI: str
+    # Required for production, but optional for development
+    GROQ_API_KEY: Optional[str] = None
+    GEMINI_API_KEY: Optional[str] = None
+    MONGODB_URI: Optional[str] = None
+    
+    # Optional with defaults
     HF_MODEL_ID: str = "your-username/cord-ner-distilbert-onnx"
     CONFIDENCE_THRESHOLD: float = 0.75
     CORS_ORIGIN: str = "http://localhost:3000"

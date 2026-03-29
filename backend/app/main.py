@@ -41,20 +41,37 @@ async def lifespan(app: FastAPI):
     logger.info("HF model     : %s", settings.HF_MODEL_ID)
     logger.info("Conf threshold: %.2f", settings.CONFIDENCE_THRESHOLD)
 
-    logger.info("Connecting to MongoDB...")
-    await connect_db()
-    logger.info("MongoDB connected ✓")
+    # MongoDB connection (optional, fail gracefully)
+    if settings.MONGODB_URI:
+        try:
+            logger.info("Connecting to MongoDB...")
+            await connect_db()
+            logger.info("MongoDB connected ✓")
+        except Exception as e:
+            logger.warning("MongoDB connection failed: %s — continuing without persistence", e)
+    else:
+        logger.warning("MONGODB_URI not set — document storage disabled")
 
-    logger.info("Loading NER model...")
-    load_model()
+    # Load NER model (optional, fail gracefully)
+    try:
+        logger.info("Loading NER model...")
+        load_model()
+        logger.info("NER model loaded ✓")
+    except Exception as e:
+        logger.warning("NER model load failed: %s — rule-based extraction enabled", e)
 
     logger.info("=" * 60)
-    logger.info("  Server ready — listening on http://0.0.0.0:8000")
+    logger.info("  Server ready — listening on http://0.0.0.0:7860")
     logger.info("=" * 60)
     yield
 
-    logger.info("Shutting down — closing MongoDB connection...")
-    await close_db()
+    # Shutdown
+    if settings.MONGODB_URI:
+        try:
+            logger.info("Shutting down — closing MongoDB connection...")
+            await close_db()
+        except Exception as e:
+            logger.warning("Error closing MongoDB: %s", e)
     logger.info("Shutdown complete.")
 
 
