@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Visionex — Document Extraction & Grounded QA</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Oswald:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: { oswald: ['Oswald','sans-serif'], inter: ['Inter','sans-serif'] },
+      colors: { dark: '#050505', green: '#16a34a', 'green-hover': '#15803d', 'green-glow': 'rgba(22,163,74,0.3)' }
+    }
+  }
+}
+</script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Inter',sans-serif; background:#050505; color:#fff; overflow:hidden; height:100vh; }
+::selection { background:#16a34a; color:#fff; }
+::-webkit-scrollbar { width:0; }
+
+.slide { position:absolute; inset:0; opacity:0; visibility:hidden; display:flex; align-items:center; justify-content:center; padding:2rem 3rem; }
+.slide.active { opacity:1; visibility:visible; }
+
+.slide-inner { max-width:1100px; width:100%; }
+
+.tag { display:inline-block; padding:2px 10px; border-radius:9999px; font-size:0.65rem; font-weight:500; text-transform:uppercase; letter-spacing:0.08em; border:1px solid rgba(255,255,255,0.15); color:#9ca3af; }
+.tag-green { border-color:rgba(22,163,74,0.4); color:#16a34a; background:rgba(22,163,74,0.08); }
+.tag-orange { border-color:rgba(249,115,22,0.4); color:#f97316; background:rgba(249,115,22,0.08); }
+.tag-grey { border-color:rgba(255,255,255,0.1); color:#6b7280; background:rgba(255,255,255,0.03); }
+
+.pipeline-box { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:0.75rem; padding:1rem 1.25rem; }
+.pipeline-arrow { color:#16a34a; font-size:1.5rem; line-height:1; text-align:center; }
+
+.table-custom { width:100%; border-collapse:collapse; }
+.table-custom th { text-align:left; padding:0.6rem 0.8rem; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.06em; color:#6b7280; border-bottom:1px solid rgba(255,255,255,0.1); font-weight:500; }
+.table-custom td { padding:0.55rem 0.8rem; font-size:0.82rem; color:#d1d5db; border-bottom:1px solid rgba(255,255,255,0.04); }
+.table-custom tr:hover td { background:rgba(255,255,255,0.02); }
+
+.code-block { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:0.75rem; padding:1rem 1.25rem; font-family:'JetBrains Mono','Fira Code',monospace; font-size:0.72rem; line-height:1.7; color:#9ca3af; overflow-x:auto; white-space:pre; }
+.code-block .key { color:#d1d5db; }
+.code-block .str { color:#16a34a; }
+.code-block .num { color:#f97316; }
+.code-block .null { color:#6b7280; }
+
+.f1-bar { height:6px; border-radius:3px; background:rgba(255,255,255,0.06); overflow:hidden; }
+.f1-fill { height:100%; border-radius:3px; transition: width 1s ease; }
+
+.dot { width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,0.15); cursor:pointer; transition:all 0.3s; }
+.dot.active { background:#16a34a; box-shadow:0 0 8px rgba(22,163,74,0.5); transform:scale(1.3); }
+
+.nav-btn { width:40px; height:40px; border-radius:50%; border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.03); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all 0.3s; color:#9ca3af; }
+.nav-btn:hover { border-color:rgba(22,163,74,0.4); color:#16a34a; background:rgba(22,163,74,0.05); }
+.nav-btn:disabled { opacity:0.2; pointer-events:none; }
+
+.check-list li { display:flex; align-items:flex-start; gap:0.6rem; margin-bottom:0.5rem; font-size:0.85rem; color:#d1d5db; }
+.check-list li svg { flex-shrink:0; margin-top:2px; color:#16a34a; }
+
+@keyframes pulseGreen { 0%,100%{box-shadow:0 0 5px rgba(22,163,74,0.3)} 50%{box-shadow:0 0 20px rgba(22,163,74,0.5)} }
+.pulse-green { animation: pulseGreen 2s infinite; }
+
+.slide-counter { font-family:'Oswald',sans-serif; font-size:0.8rem; color:#6b7280; letter-spacing:0.1em; }
+.slide-counter .current { color:#16a34a; font-size:1.1rem; }
+
+@keyframes fadeInUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+.anim-item { opacity:0; transform:translateY(20px); }
+.slide.active .anim-item { animation: fadeInUp 0.5s ease forwards; }
+.slide.active .anim-item:nth-child(1) { animation-delay:0.05s; }
+.slide.active .anim-item:nth-child(2) { animation-delay:0.12s; }
+.slide.active .anim-item:nth-child(3) { animation-delay:0.19s; }
+.slide.active .anim-item:nth-child(4) { animation-delay:0.26s; }
+.slide.active .anim-item:nth-child(5) { animation-delay:0.33s; }
+.slide.active .anim-item:nth-child(6) { animation-delay:0.40s; }
+.slide.active .anim-item:nth-child(7) { animation-delay:0.47s; }
+.slide.active .anim-item:nth-child(8) { animation-delay:0.54s; }
+.slide.active .anim-item:nth-child(9) { animation-delay:0.61s; }
+.slide.active .anim-item:nth-child(10) { animation-delay:0.68s; }
+
+.two-col { display:grid; grid-template-columns:1fr 1fr; gap:2.5rem; }
+@media(max-width:768px) {
+  .slide { padding:1.5rem; }
+  .two-col { grid-template-columns:1fr; gap:1.5rem; }
+  .hide-mobile { display:none !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- Progress Bar -->
+<div id="progressBar" style="position:fixed;top:0;left:0;height:2px;background:linear-gradient(90deg,#16a34a,#22c55e);z-index:100;transition:width 0.4s ease;width:6.66%"></div>
+
+<!-- Slide Counter (top-right) -->
+<div style="position:fixed;top:1.2rem;right:2rem;z-index:100" class="slide-counter">
+  <span class="current" id="slideNum">01</span> <span>/ 15</span>
+</div>
+
+<!-- Navigation (bottom) -->
+<div style="position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);z-index:100;display:flex;align-items:center;gap:1rem">
+  <button class="nav-btn" id="prevBtn" onclick="goSlide(-1)" disabled>
+    <i data-lucide="chevron-left" style="width:18px;height:18px"></i>
+  </button>
+  <div id="dots" style="display:flex;gap:6px;align-items:center"></div>
+  <button class="nav-btn" id="nextBtn" onclick="goSlide(1)">
+    <i data-lucide="chevron-right" style="width:18px;height:18px"></i>
+  </button>
+</div>
+
+<!-- Keyboard hint -->
+<div style="position:fixed;bottom:1.6rem;right:2rem;z-index:100;font-size:0.65rem;color:#4b5563;display:flex;align-items:center;gap:0.4rem" class="hide-mobile">
+  <span style="padding:1px 6px;border:1px solid rgba(255,255,255,0.1);border-radius:3px;font-size:0.6rem">←</span>
+  <span style="padding:1px 6px;border:1px solid rgba(255,255,255,0.1);border-radius:3px;font-size:0.6rem">→</span>
+  <span>navigate</span>
+</div>
+
+<!-- ==================== SLIDES ==================== -->
+
+<!-- SLIDE 1 — Title -->
+<div class="slide active" data-slide="1">
+  <div class="slide-inner text-center">
+    <div class="anim-item"><span class="tag tag-green">ML Engineer — Document Intelligence</span></div>
+    <h1 class="anim-item font-oswald text-6xl md:text-8xl font-500 tracking-tight mt-6" style="line-height:0.95">VISIONEX</h1>
+    <p class="anim-item text-lg md:text-xl text-gray-400 mt-4 font-light max-w-xl mx-auto">Document Extraction & Grounded Question Answering System</p>
+    <p class="anim-item font-oswald text-xl md:text-2xl mt-6" style="color:rgba(255,255,255,0.2)">"See beyond the scan."</p>
+    <div class="anim-item flex flex-wrap justify-center gap-2 mt-8">
+      <span class="tag">LayoutLMv3</span><span class="tag">EasyOCR</span><span class="tag">Groq</span><span class="tag">MongoDB</span><span class="tag">FastAPI</span><span class="tag">React</span>
+    </div>
+    <p class="anim-item text-xs text-gray-600 mt-10">Built by <span class="text-gray-400">Shaibinkb</span></p>
+  </div>
+</div>
+
+<!-- SLIDE 2 — Problem Statement -->
+<div class="slide" data-slide="2">
+  <div class="slide-inner">
+    <div class="anim-item"><span class="tag">Context</span></div>
+    <h2 class="anim-item font-oswald text-4xl md:text-5xl font-400 tracking-tight mt-4">The Real-World Challenge</h2>
+    <div class="two-col mt-8">
+      <div>
+        <div class="anim-item pipeline-box mb-3">
+          <p class="text-sm text-gray-400">Organizations process <span class="text-white font-medium">thousands of receipts and invoices</span> daily.</p>
+        </div>
+        <ul class="anim-item check-list mt-4">
+          <li><i data-lucide="alert-triangle" style="width:16px;height:16px;color:#f97316"></i>Manual data entry is slow, error-prone, and expensive</li>
+          <li><i data-lucide="alert-triangle" style="width:16px;height:16px;color:#f97316"></i>Receipts are unstructured — different layouts, fonts, languages</li>
+          <li><i data-lucide="target" style="width:16px;height:16px"></i>Businesses need: <span class="text-white">structured fields</span> + ability to <span class="text-white">query them naturally</span></li>
+        </ul>
+        <div class="anim-item mt-6 p-4 rounded-lg" style="background:rgba(22,163,74,0.06);border:1px solid rgba(22,163,74,0.15)">
+          <p class="text-xs text-green-500 font-medium uppercase tracking-wider mb-2">What we need to build</p>
+          <p class="text-sm text-gray-300"><span class="text-white font-medium">Extract</span> → Total, Date, Vendor, Receipt ID</p>
+          <p class="text-sm text-gray-300"><span class="text-white font-medium">Store</span> → Structured JSON in database</p>
+          <p class="text-sm text-gray-300"><span class="text-white font-medium">Query</span> → "What is the total?" from extracted data only</p>
+        </div>
+      </div>
+      <div>
+        <div class="anim-item p-4 rounded-lg" style="background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.12)">
+          <p class="text-xs text-red-400 font-medium uppercase tracking-wider mb-3">Why it's hard</p>
+          <div class="pipeline-box mb-2">
+            <p class="text-sm text-gray-300">OCR noise on real receipts</p>
+            <p class="text-xs text-gray-600 mt-1">Blur, low contrast, crinkled paper</p>
+          </div>
+          <div class="pipeline-box mb-2">
+            <p class="text-sm text-gray-300">No fixed layout</p>
+            <p class="text-xs text-gray-600 mt-1">Every receipt looks different</p>
+          </div>
+          <div class="pipeline-box">
+            <p class="text-sm text-gray-300">LLMs hallucinate if not grounded</p>
+            <p class="text-xs text-gray-600 mt-1">Will invent plausible-looking numbers</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 3 — Solution Overview -->
+<div class="slide" data-slide="3">
+  <div class="slide-inner">
+    <div class="anim-item"><span class="tag tag-green">Solution</span></div>
+    <h2 class="anim-item font-oswald text-4xl md:text-5xl font-400 tracking-tight mt-4">End-to-End Pipeline</h2>
+    <div class="anim-item mt-6 flex flex-col items-center gap-1">
+      <div class="pipeline-box text-center" style="min-width:260px"><span class="text-sm text-gray-300">Receipt Image</span></div>
+      <div class="pipeline-arrow">↓</div>
+      <div class="pipeline-box text-center" style="min-width:260px;border-color:rgba(22,163,74,0.2)"><span class="text-sm text-green-400">EasyOCR</span><span class="text-xs text-gray-500 ml-2">words + bounding boxes</span></div>
+      <div class="pipeline-arrow">↓</div>
+      <div class="pipeline-box text-center" style="min-width:260px;border-color:rgba(22,163,74,0.2)"><span class="text-sm text-green-400">LayoutLMv3 NER (ONNX)</span><span class="text-xs text-gray-500 ml-2">fine-tuned on CORD</span></div>
+      <div class="pipeline-arrow">↓</div>
+      <div class="pipeline-box text-center" style="min-width:260px"><span class="text-sm text-gray-300">Confidence Check</span><span class="text-xs text-gray-500 ml-2">threshold 0.75</span></div>
+      <div class="pipeline-arrow">↓</div>
+      <div class="pipeline-box text-center" style="min-width:320px;border-color:rgba(22,163,74,0.25);background:rgba(22,163,74,0.04)">
+        <p class="text-sm text-green-400 font-medium">High confidence → use NER</p>
+        <p class="text-sm text-orange-400 font-medium">Low confidence → Groq LLM</p>
+        <p class="text-sm text-gray-400 font-medium">Groq fails → Gemini LLM</p>
+      </div>
+      <div class="pipeline-arrow">↓</div>
+      <div class="pipeline-box text-center" style="min-width:260px"><span class="text-sm text-gray-300">MongoDB</span><span class="text-xs text-gray-500 ml-2">JSON + raw file + trace</span></div>
+      <div class="pipeline-arrow">↓</div>
+      <div class="pipeline-box text-center" style="min-width:260px"><span class="text-sm text-gray-300">FastAPI REST API → React UI</span></div>
+      <div class="pipeline-arrow">↓</div>
+      <div class="pipeline-box text-center pulse-green" style="min-width:300px;border-color:rgba(22,163,74,0.4);background:rgba(22,163,74,0.06)">
+        <span class="text-sm text-green-400 font-medium">Grounded QA via Groq</span><br><span class="text-xs text-gray-500">answers only from extracted JSON</span>
+      </div>
+    </div>
+    <p class="anim-item text-xs text-gray-500 mt-4 text-center italic">Key principle: Fine-tuned model runs first. LLM is a fallback, not the primary extractor.</p>
+  </div>
+</div>
+
+<!-- SLIDE 4 — Dataset & Preprocessing -->
+<div class="slide" data-slide="4">
+  <div class="slide-inner">
+    <div class="anim-item"><span class="tag">Data</span></div>
+    <h2 class="anim-item font-oswald text-4xl md:text-5xl font-400 tracking-tight mt-4">Dataset & Preprocessing</h2>
+    <div class="two-col mt-6">
+      <div>
+        <div class="anim-item pipeline-box mb-3">
+          <p class="text-sm text-white font-medium">CORD Dataset</p>
+          <p class="text-xs text-gray-500 mt-1">naver-clova-ix/cord-v1 — Hugging Face</p>
+        </div>
+        <ul class="anim-item check-list">
+          <li><i data-lucide="check" style="width:15px;height:15px"></i>Receipt images with OCR text and labeled fields</li>
+          <li><i data-lucide="check" style="width:15px;height:15px"></i>Word-level bounding boxes (x0, y0, x1, y1)</li>
+          <li><i data-lucide="check" style="width:15px;height:15px"></i>Ground truth: menu items, prices, totals, vendor, date</li>
+          <li><i data-lucide="check" style="width:15px;height:15px"></i>Token-level annotations aligned to words</li>
+        </ul>
+        <div class="anim-item mt-4 p-3 rounded-lg" style="background:rgba(22,163,74,0.06);border:1px solid rgba(22,163,74,0.15)">
+          <p class="text-xs text-gray-400">Used subset: <span class="text-green-400 font-medium">200 training samples</span> (efficient for free GPU)</p>
+        </div>
+      </div>
+      <div>
+        <p class="anim-item text-xs text-gray-500 uppercase tracking-wider font-medium mb-3">Preprocessing Steps</p>
+        <div class="anim-item pipeline-box mb-2"><span class="text-sm text-gray-300">1.</span> <span class="text-sm text-gray-400">Load subset via datasets library</span></div>
+        <div class="anim-item pipeline-box mb-2"><span class="text-sm text-gray-300">2.</span> <span class="text-sm text-gray-400">Parse ground_truth JSON → extract field values</span></div>
+        <div class="anim-item pipeline-box mb-2"><span class="text-sm text-gray-300">3.</span> <span class="text-sm text-gray-400">Map to BIO tags: B-TOTAL, I-TOTAL, B-DATE, B-VENDOR…</span></div>
+        <div class="anim-item pipeline-box mb-2"><span class="text-sm text-gray-300">4.</span> <span class="text-sm text-gray-400">Normalize bboxes to 0–1000 range (LayoutLMv3 format)</span></div>
+        <div class="anim-item pipeline-box mb-2"><span class="text-sm text-gray-300">5.</span> <span class="text-sm text-gray-400">Tokenize with LayoutLMv3Processor (image+words+boxes)</span></div>
+        <div class="anim-item pipeline-box mb-2"><span class="text-sm text-gray-300">6.</span> <span class="text-sm text-gray-400">Align labels to first subtoken (others → -100)</span></div>
+        <div class="anim-item pipeline-box"><span class="text-sm text-gray-300">7.</span> <span class="text-sm text-gray-400">Train/validation split: <span class="text-white">80/20</span></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 5 — What We Tried First -->
+<div class="slide" data-slide="5">
+  <div class="slide-inner">
+    <div class="anim-item"><span class="tag tag-orange">Attempt 1</span></div>
+    <h2 class="anim-item font-oswald text-4xl md:text-5xl font-400 tracking-tight mt-4">Text-Only NER <span class="text-red-500">✗</span></h2>
+    <div class="two-col mt-6">
+      <div>
+        <div class="anim-item pipeline-box mb-3">
+          <p class="text-sm text-white font-medium">DistilBERT / BERT Text-Only NER</p>
+          <p class="text-xs text-gray-500 mt-1">Fine-tune standard text NER on OCR text only</p>
+        </div>
+        <ul class="anim-item check-list">
+          <li><i data-lucide="file-text" style="width:15px;height:15px;color:#6b7280"></i>Extracted raw OCR text from CORD</li>
+          <li><i data-lucide="file-text" style="width:15px;height:15px;color:#6b7280"></i>Mapped words to BIO labels</li>
+          <li><i data-lucide="file-text" style="width:15px;height:15px;color:#6b7280"></i>Fine-tuned distilbert-base-uncased</li>
+          <li><i data-lucide="file-text" style="width:15px;height:15px;color:#6b7280"></i>Evaluated with seqeval F1</li>
+        </ul>
+        <div class="anim-item mt-4 p-4 rounded-lg" style="background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15)">
+          <p class="text-xs text-red-400 font-medium uppercase tracking-wider mb-2">Result</p>
+          <p class="text-sm text-gray-300">F1 score was <span class="text-red-400 font-medium">poor</span> — model struggled to identify fields reliably</p>
+        </div>
+      </div>
+      <div>
+        <p class="anim-item text-xs text-gray-500 uppercase tracking-wider font-medium mb-3">Why it failed</p>
+        <div class="anim-item pipeline-box mb-2" style="border-color:rgba(239,68,68,0.15)">
+          <p class="text-sm text-gray-300">"334,000" looks identical whether it's a <span class="text-red-400">price</span>, <span class="text-orange-400">total</span>, or <span class="text-blue-400">phone number</span></p>
+        </div>
+        <div class="anim-item pipeline-box mb-2" style="border-color:rgba(239,68,68,0.15)">
+          <p class="text-sm text-gray-300">Confused menu item prices with totals <span class="text-red-400">constantly</span></p>
+        </div>
+        <div class="anim-item pipeline-box mb-2" style="border-color:rgba(239,68,68,0.15)">
+          <p class="text-sm text-gray-300">Vendor name detection was <span class="text-red-400">near-random</span></p>
+        </div>
+        <div class="anim-item pipeline-box mb-3" style="border-color:rgba(239,68,68,0.15)">
+          <p class="text-sm text-gray-300">Text-only = <span class="text-red-400">no spatial awareness</span></p>
+        </div>
+        <div class="anim-item p-3 rounded-lg" style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06)">
+          <p class="text-sm text-gray-400 italic">"Total" at the bottom of a receipt means something different from "Total" in a column header. Pure text NER cannot distinguish these.</p>
+        </div>
+        <p class="anim-item text-sm text-white font-medium mt-4">→ Layout-aware model required.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 6 — LayoutLMv3 Fine-Tuning -->
+<div class="slide" data-slide="6">
+  <div class="slide-inner">
+    <div class="anim-item"><span class="tag tag-green">Attempt 2</span></div>
+    <h2 class="anim-item font-oswald text-4xl md:text-5xl font-400 tracking-tight mt-4">LayoutLMv3 <span class="text-green-500">✓</span></h2>
+    <div class="two-col mt-6">
+      <div>
+        <p class="anim-item text-xs text-gray-500 uppercase tracking-wider font-medium mb-3">Why LayoutLMv3</p>
+        <ul class="anim-item check-list">
+          <li><i data-lucide="check" style="width:15px;height:15px"></i>Jointly encodes text tokens + bounding boxes + image patches</li>
+          <li><i data-lucide="check" style="width:15px;height:15px"></i>Pre-trained on document understanding tasks</li>
+          <li><i data-lucide="check" style="width:15px;height:15px"></i>Understands spatial relationships — "bottom right = likely total"</li>
+          <li><i data-lucide="check" style="width:15px;height:15px"></i>State-of-the-art on CORD, FUNSD benchmarks</li>
+        </ul>
+        <div class="anim-item mt-5 p-3 rounded-lg" style="background:rgba(22,163,74,0.06);border:1px solid rgba(22,163,74,0.15)">
+          <p class="text-xs text-green-400 font-medium">Export: ONNX via optimum-cli</p>
+          <p class="text-xs text-gray-500 mt-1">3–5× faster CPU inference vs PyTorch</p>
+          <p class="text-xs text-gray-500">Pushed to HuggingFace: <span class="text-gray-300">ShaibinkB/cord-layoutlmv3-onnx</span></p>
+        </div>
+      </div>
+      <div>
+        <p class="anim-item text-xs text-gray-500 uppercase tracking-wider font-medium mb-3">Training Configuration</p>
+        <table class="anim-item table-custom" style="border:1px solid rgba(255,255,255,0.06);border-radius:0.75rem;overflow:hidden">
+          <tr><td style="color:#9ca3af;width:40%">Model</td><td class="text-white font-medium">microsoft/layoutlmv3-base</td></tr>
+          <tr><td style="color:#9ca3af">Task</td><td>Token Classification (NER)</td></tr>
+          <tr><td style="color:#9ca3af">Labels</td><td>13 BIO tags</td></tr>
+          <tr><td style="color:#9ca3af">Dataset</td><td>CORD-v1, 200 samples</td></tr>
+          <tr><td style="color:#9ca3af">Epochs</td><td class="text-white">3</td></tr>
+          <tr><td style="color:#9ca3af">Batch size</td><td class="text-white">4</td></tr>
+          <tr><td style="color:#9ca3af">Learning rate</td><td class="text-green-400">5e-5</td></tr>
+          <tr><td style="color:#9ca3af">Weight decay</td><td>0.01</td></tr>
+          <tr><td style="color:#9ca3af">Metric</td><td>seqeval F1 (entity-level)</td></tr>
+          <tr><td style="color:#9ca3af">Environment</td><td>Google Colab (free T4 GPU)</td></tr>
+          <tr><td style="color:#9ca3af">Training time</td><td class="text-green-400">~15–20 min</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 7 — Evaluation Results -->
+<div class="slide" data-slide="7">
+  <div class="slide-inner">
+    <div class="anim-item"><span class="tag">Evaluation</span></div>
+    <h2 class="anim-item font-oswald text-4xl md:text-5xl font-400 tracking-tight mt-4">Results</h2>
+    <p class="anim-item text-sm text-gray-500 mt-1">seqeval metrics on validation split</p>
+    <div class="two-col mt-6">
+      <div>
+        <table class="anim-item table-custom" style="border:1px solid rgba(255,255,255,0.06);border-radius:0.75rem;overflow:hidden">
+          <thead><tr><th>Entity</th><th>F1</th><th style="width:45%"></th></tr></thead>
+          <tbody>
+            <tr><td class="text-white font-medium">MENU</td><td class="text-green-400">Strong</td><td><div class="f1-bar"><div class="f1-fill" data-w="88" style="width:0;background:#16a34a"></div></div></td></tr>
+            <tr><td class="text-white font-medium">PRICE</td><td class="text-green-400">Strong</td><td><div class="f1-bar"><div class="f1-fill" data-w="85" style="width:0;background:#16a34a"></div></div></td></tr>
+            <tr><td class="text-white font-medium">TOTAL</td><td class="text-yellow-400">Moderate</td><td><div class="f1-bar"><div class="f1-fill" data-w="55" style="width:0;background:#eab308"></div></div></td></tr>
+            <tr><td class="text-white font-medium">VENDOR</td><td class="text-yellow-400">Moderate</td><td><div class="f1-bar"><div class="f1-fill" data-w="40" style="width:0;background:#eab308"></div></div></td></tr>
+            <tr><td class="text-white font-medium">DATE</td><td class="text-red-400">Weak</td><td><div class="f1-bar"><div class="f1-fill" data-w="15" style="width:0;background:#ef4444"></div></div></td></tr>
+            <tr><td class="text-white font-medium">RECEIPT_ID</td><td class="text-red-400">Weak</td><td><div class="f1-bar"><div class="f1-fill" data-w="10" style="width:0;background:#ef4444"></div></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <p class="anim-item text-xs text-gray-500 uppercase tracking-wider font-medium mb-3">Key Observations</p>
+        <div class="anim-item pipeline-box mb-2" style="border-color:rgba(22,163,74,0.15)">
+          <p class="text-sm text-gray-300">MENU & PRICE: <span class="text-green-400">most common labels</span> → learned well</p>
+        </div>
+        <div class="anim-item pipeline-box mb-2">
+          <p class="text-sm text-gray-300">TOTAL works when <span class="text-white">layout is clean</span></p>
+        </div>
+        <div class="anim-item pipeline-box mb-2" style="border-color:rgba(239,68,68,0.12)">
+          <p class="text-sm text-gray-300">DATE & RECEIPT_ID: <span class="text-red-400">rare in 200-sample subset</span> → underfit</p>
+        </div>
+        <div class="anim-item pipeline-box mb-4">
+          <p class="text-sm text-gray-300">Expected & acceptable — <span class="text-green-400">LLM fallback covers weak fields</span></p>
+        </div>
+        <div class="anim-item p-3 rounded-lg" style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06)">
+          <p class="text-xs text-gray-500 uppercase tracking-wider mb-2">Real receipt behavior</p>
+          <p class="text-xs text-gray-400">• Menu items & prices: confidence >0.90</p>
+          <p class="text-xs text-gray-400">• Total: derived from PRICE near "Total" keyword</p>
+          <p class="text-xs text-gray-400">• Vendor: derived from first MENU span</p>
+          <p class="text-xs text-gray-400">• Missing fields → Groq fills from OCR text</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 8 — Hybrid Extraction -->
+<div class="slide" data-slide="8">
+  <div class="slide-inner">
+    <div class="anim-item"><span class="tag tag-green">Strategy</span></div>
+    <h2 class="anim-item font-oswald text-4xl md:text-5xl font-400 tracking-tight mt-4">Hybrid Extraction</h2>
+    <p class="anim-item text-sm text-gray-500 mt-1">No single approach is perfect</p>
+    <div class="mt-6">
+      <div class="anim-item flex flex-col items-center gap-1">
+        <div class="pipeline-box" style="min-width:420px;border-color:rgba(22,163,74,0.2);background:rgba(22,163,74,0.04)">
+          <p class="text-sm"><span class="text-green-400 font-medium">Stage 1 — LayoutLMv3 NER</span> <span class="text-xs text-gray-500">(always runs first)</span></p>
+          <p class="text-xs text-gray-400 mt-1">Fast: ~1s CPU (ONNX) · Offline · Returns entity spans + confidence</p>
+        </div>
+        <div class="pipeline-arrow">↓</div>
+        <div class="pipeline-box" style="min-width:420px">
+          <p class="text-sm text-gray-300">All fields found AND confidence ≥ 0.75?</p>
+          <p class="text-sm text-green-400 font-medium mt-1">→ Return NER result directly (method = "ner")</p>
+        </div>
+        <div class="pipeline-arrow">↓</div>
+        <div class="pipeline-box" style="min-width:420px;border-color:rgba(249,115,22,0.15)">
+          <p class="text-sm"><span class="text-orange-400 font-medium">Stage 2 — Groq LLM</span> <span class="text-xs text-gray-500">(llama-3.3-70b-versatile)</span></p>
+          <p class="text-xs text-gray-400 mt-1">Sends full OCR text with structured JSON prompt · ~400–700ms</p>
+        </div>
+        <div class="pipeline-arrow">↓</div>
+        <div class="pipeline-box" style="min-width:420px">
+          <p class="text-sm text-gray-300">Groq fails?</p>
+          <p class="text-sm text-gray-400 mt-1">→ <span class="text-blue-400">Stage 3 — Gemini 2.0 Flash</span> (secondary fallback)</p>
+        </div>
+      </div>
+      <div class="anim-item mt-5 p-4 rounded-lg mx-auto" style="max-width:500px;background:rgba(22,163,74,0.06);border:1px solid rgba(22,163,74,0.15)">
+        <p class="text-xs text-green-400 font-medium uppercase tracking-wider mb-2">Smart Merging Rules</p>
+        <p class="text-sm text-gray-300">NER confidence ≥ 0.75 → <span class="text-green-400">trusted, LLM cannot override</span></p>
+        <p class="text-sm text-gray-300">NER confidence < 0.75 → <span class="text-orange-400">LLM overrides if better</span></p>
+        <p class="text-sm text-gray-300">Field completely missing → <span class="text-blue-400">LLM fills it</span></p>
+        <p class="text-xs text-gray-500 mt-2 italic">Result: Speed + Accuracy + Robustness</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 9 — QA System -->
+<div class="slide" data-slide="9">
+  <div class="slide-inner">
+    <div class="anim-item"><span class="tag">QA System</span></div>
+    <h2 class="anim-item font-oswald text-4xl md:text-5xl font-400 tracking-tight mt-4">Grounded Question Answering</h2>
+    <p class="anim-item text-sm text-gray-500 mt-1">Direct LLM with strict grounding — no vector DB needed</p>
+    <div class="two-col mt-6">
+      <div>
+        <div class="anim-item flex flex-col items-center gap-1">
+          <div class="pipeline-box text-center" style="min-width:280px"><span class="text-sm text-gray-300">User: "What is the total amount?"</span></div>
+          <div class="pipeline-arrow">↓</div>
+          <div class="pipeline-box text-center" style="min-width:280px"><span class="text-sm text-gray-300">Fetch extracted JSON from MongoDB</span></div>
+          <div class="pipeline-arrow">↓</div>
+          <div class="pipeline-box text-center" style="min-width:280px;border-color:rgba(22,163,74,0.2)">
+            <span class="text-sm text-green-400">Build Groq prompt</span>
+            <p class="text-xs text-gray-500 mt-1">"Answer ONLY from this data: {…}"</p>
+          </div>
+          <div class="pipeline-arrow">↓</div>
+          <div class="pipeline-box text-center" style="min-width:280px"><span class="text-sm text-gray-300">llama-3.3-70b · temperature=0</span></div>
+          <div class="pipeline-arrow">↓</div>
+          <div class="pipeline-box text-center pulse-green" style="min-width:280px;border-color:rgba(22,163,74,0.4)">
+            <span class="text-sm text-green-400 font-medium">"The total amount is 334,000."</span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <p class="anim-item text-xs text-gray-500 uppercase tracking-wider font-medium mb-3">Why this works</p>
+        <ul class="anim-item check-list">
+          <li><i data-lucide="shield-check" style="width:15px;height:15px"></i>Cannot hallucinate fields not in JSON</li>
+          <li><i data-lucide="shield-check" style="width:15px;height:15px"></i>Temperature 0 = deterministic, consistent</li>
+          <li><i data-lucide="shield-check" style="width:15px;height:15px"></i>Prompt injection stripped by sanitize.py</li>
+        </ul>
+        <div class="anim-item mt-5 p-4 rounded-lg" style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06)">
+          <p class="text-xs text-gray-500 uppercase tracking-wider mb-2">Multi-document support</p>
+          <p class="text-sm text-gray-400">• <span class="text-white">/query</span> accepts optional document_id</p>
+          <p class="text-sm text-gray-400">• UI shows dropdown of all saved docs</p>
+          <p class="text-sm text-gray-400">• Defaults to latest upload if no ID</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 10 — API Design -->
+<div class="slide" data-slide="10">
+  <div class="slide-inner">
+    <div class="anim-item"><span class="tag">API</span></div>
+    <h2 class="anim-item font-oswald text-4xl md:text-5xl font-400 tracking-tight mt-4">FastAPI REST Endpoints</h2>
+    <div class="two-col mt-6">
+      <div>
+        <table class="anim-item table-custom" style="border:1px solid rgba(255,255,255,0.06);border-radius:0.75rem;overflow:hidden">
+          <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><span class="tag-green tag" style="font-size:0.6rem">POST</span></td><td class="text-white text-xs font-mono">/extract</td><td class="text-xs">Upload → JSON extraction</td></tr>
+            <tr><td><span class="tag tag-grey" style="font-size:0.6rem">GET</span></td><td class="text-white text-xs font-mono">/extract/status/{id}</td><td class="text-xs">Live pipeline polling</td></tr>
+            <tr><td><span class="tag tag-grey" style="font-size:0.6rem">GET</span></td><td class="text-white text-xs font-mono">/documents</td><td class="text-xs">List recent docs</td></tr>
+            <tr><td><span class="tag tag-grey" style="font-size:0.6rem">GET</span></td><td class="text-white text-xs font-mono">/documents/{id}/file</td><td class="text-xs">Inline file preview</td></tr>
+            <tr><td><span class="tag-green tag" style="font-size:0.6rem">POST</span></td><td class="text-white text-xs font-mono">/query</td><td class="text-xs">Natural language QA</td></tr>
+            <tr><td><span class="tag tag-grey" style="font-size:0.6rem">GET</span></td><td class="text-white text-xs font-mono">/health</td><td class="text-xs">DB + model status</td></tr>
+          </tbody>
+        </table>
+        <div class="anim-item mt-4 p-3 rounded-lg" style="background:rgba(22,163,74,0.06);border:1px solid rgba(22,163,74,0.15)">
+          <p class="text-xs text-green-400 font-medium">Pipeline Trace</p>
+          <p class="text-xs text-gray-500 mt-1">Each step logged with status + elapsed ms. UI polls every 400ms during processing.</p>
+        </div>
+      </div>
+      <div>
+        <p class="anim-item text-xs text-gray-500 uppercase tracking-wider font-medium mb-3">Security & Reliability</p>
+        <div class="anim-item pipeline-box mb-2"><p class="text-sm text-gray-300"><span class="text-white">Rate limiting:</span> 10 req/min per IP (slowapi)</p></div>
+        <div class="anim-item pipeline-box mb-2"><p class="text-sm text-gray-300"><span class="text-white">CORS:</span> restricted to frontend origin</p></div>
+        <div class="anim-item pipeline-box mb-2"><p class="text-sm text-gray-300"><span class="text-white">Input sanitization:</span> prompt injection stripped</p></div>
+        <div class="anim-item pipeline-box mb-2"><p class="text-sm text-gray-300"><span class="text-white">Validation:</span> Pydantic on all models</p></div>
+        <div class="anim-item pipeline-box mb-2"><p class="text-sm text-gray-300"><span class="text-white">Async:</span> motor (MongoDB), asyncio</p></div>
+        <div class="anim-item pipeline-box"><p class="text-sm text-gray-300"><span class="text-white">Trace:</span> stored in MongoDB, returned in API</p></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 11 — Database Schema -->
+<div class="slide" data-slide="11">
+  <div class="slide-inner">
+    <div class="anim-item"><span class="tag">Database</span></div>
+    <h2 class="anim-item font-oswald text-4xl md:text-5xl font-400 tracking-tight mt-4">MongoDB Schema</h2>
+    <p class="anim-item text-sm text-gray-500 mt-1">doc_extraction.documents</p>
+    <div class="two-col mt-5">
+      <div>
+        <div class="anim-item code-block"><span class="key">{</span>
+  <span class="key">"_id"</span>: <span class="str">"ObjectId"</span>,
+  <span class="key">"filename"</span>: <span class="str">"receipt.jpg"</span>,
+  <span class="key">"content_type"</span>: <span class="str">"image/jpeg"</span>,
+  <span class="key">"ocr_text"</span>: <span class="str">"HAKAU UDANG 92,000 ..."</span>,
+  <span class="key">"extracted"</span>: {
+    <span class="key">"total_amount"</span>: <span class="str">"334,000"</span>,
+    <span class="key">"date"</span>: <span class="str">"2024-01-15"</span>,
+    <span class="key">"vendor_name"</span>: <span class="str">"HAKAU Restaurant"</span>,
+    <span class="key">"receipt_id"</span>: <span class="null">null</span>
+  },
+  <span class="key">"confidence"</span>: {
+    <span class="key">"total_amount"</span>: <span class="num">0.76</span>,
+    <span class="key">"date"</span>: <span class="num">0.0</span>,
+    <span class="key">"vendor_name"</span>: <span class="num">0.98</span>,
+    <span class="key">"receipt_id"</span>: <span class="null">null</span>
+  },
+  <span class="key">"extraction_method"</span>: <span class="str">"llm"</span>,
+  <span class="key">"pipeline_trace"</span>: [
+    { <span class="key">"stage"</span>: <span class="str">"ocr"</span>, <span class="key">"status"</span>: <span class="str">"done"</span>,
+      <span class="key">"detail"</span>: <span class="str">"38 words"</span>, <span class="key">"elapsed_ms"</span>: <span class="num">8300</span> },
+    { <span class="key">"stage"</span>: <span class="str">"ner"</span>, <span class="key">"status"</span>: <span class="str">"done"</span>,
+      <span class="key">"detail"</span>: <span class="str">"2 fields"</span>, <span class="key">"elapsed_ms"</span>: <span class="num">1050</span> },
+    { <span class="key">"stage"</span>: <span class="str">"llm"</span>, <span class="key">"status"</span>: <span class="str">"done"</span>,
+      <span class="key">"detail"</span>: <span class="str">"Groq filled 2"</span>, <span class="key">"elapsed_ms"</span>: <span class="num">430</span> }
+  ],
+  <span class="key">"file_data"</span>: <span class="str">"Binary(raw bytes)"</span>,
+  <span class="key">"has_file"</span>: <span class="num">true</span>,
+  <span class="key">"created_at"</span>: <span class="str">"ISODate"</span>
+<span class="key">}</span></div>
+      </div>
+      <div>
+        <p class="anim-item text-xs text-gray-500 uppercase tracking-wider font-medium mb-3">Design Decisions</p>
+        <div class="anim-item pipeline-box mb-2">
+          <p class="text-sm text-gray-300"><span class="text-white">file_data in MongoDB</span> for self-contained demo</p>
+          <p class="text-xs text-orange-400 mt-1">Trade-off: BSON 16MB limit</p>
+        </div>
+        <div class="anim-item pipeline-box mb-2">
+          <p class="text-sm text-gray-300"><span class="text-white">extraction_method</span> tracks NER vs LLM rate</p>
+        </div>
+        <div class="anim-item pipeline-box mb-2">
+          <p class="text-sm text-gray-300"><span class="text-white">confidence: 0.0</span> = LLM-filled (no token score)</p>
+        </div>
+        <div class="anim-item pipeline-box">
+          <p class="text-sm text-gray-300"><span class="text-white">pipeline_trace</span> enables UI live visualization</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 12 — UI Walkthrough -->
+<div class="slide" data-slide="12">
+  <div class="slide-inner">
+    <div class="anim-item"><span class="tag">Frontend</span></div>
+    <h2 class="anim-item font-oswald text-4xl md:text-5xl font-400 tracking-tight mt-4">React UI Walkthrough</h2>
+    <p class="anim-item text-sm text-gray-500 mt-1">React + Vite + Tailwind CSS</p>
+    <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="anim-item p-5 rounded-xl" style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06)">
+        <div class="flex items-center gap-2 mb-3">
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:rgba(22,163,74,0.1)"><i data-lucide="upload" style="width:16px;height:16px;color:#16a34a"></i></div>
+          <p class="text-sm text-white font-medium">UploadForm</p>
+        </div>
+        <ul class="space-y-2">
+          <li class="text-xs text-gray-400">• Drag & drop or click (JPEG, PNG, WebP, PDF)</li>
+          <li class="text-xs text-gray-400">• Live pipeline visualization (400ms polling)</li>
+          <li class="text-xs text-gray-400">• Image preview while processing</li>
+          <li class="text-xs text-gray-400">• History panel with one-click context switch</li>
+        </ul>
+      </div>
+      <div class="anim-item p-5 rounded-xl" style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06)">
+        <div class="flex items-center gap-2 mb-3">
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:rgba(22,163,74,0.1)"><i data-lucide="layout-grid" style="width:16px;height:16px;color:#16a34a"></i></div>
+          <p class="text-sm text-white font-medium">ResultView</p>
+        </div>
+        <ul class="space-y-2">
+          <li class="text-xs text-gray-400">• Document image preview (from MongoDB)</li>
+          <li class="text-xs text-gray-400">• Pipeline trace — status + timing per stage</li>
+          <li class="text-xs text-gray-400">• 4 fields with confidence badges</li>
+          <li class="text-xs text-gray-400">• <span class="text-green-500">Green</span> ≥75% · <span class="text-orange-400">Orange</span> <75% · <span class="text-gray-500">Grey</span> LLM</li>
+        </ul>
+      </div>
+      <div class="anim-item p-5 rounded-xl" style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06)">
+        <div class="flex items-center gap-2 mb-3">
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:rgba(22,163,74,0.1)"><i data-lucide="message-square" style="width:16px;height:16px;color:#16a34a"></i></div>
+          <p class="text-sm text-white font-medium">ChatWindow</p>
+        </div>
+        <ul class="space-y-2">
+          <li class="text-xs text-gray-400">• Document context selector dropdown</li>
+          <li class="text-xs text-gray-400">• Suggestion chips for quick questions</li>
+          <li class="text-xs text-gray-400">• Chat bubble UI with typing indicator</li>
+          <li class="text-xs text-gray-400">• Green send, Enter to send, auto-scroll</li>
+        </ul>
+      </div>
+    </div>
+    <div class="anim-item mt-4 p-3 rounded-lg inline-flex items-center gap-3" style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06)">
+      <div class="w-4 h-4 rounded" style="background:#f5f4f0"></div>
+      <span class="text-xs text-gray-400">Theme: Off-white (#f5f4f0), black ink, green (#16a34a) for active/pipeline states</span>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 13 — Design Decisions -->
+<div class="slide" data-slide="13">
+  <div class="slide-inner">
+    <div class="anim-item"><span class="tag">Architecture</span></div>
+    <h2 class="anim-item font-oswald text-4xl md:text-5xl font-400 tracking-tight mt-4">Design Decisions</h2>
+    <div class="anim-item mt-5 overflow-x-auto">
+      <table class="table-custom" style="border:1px solid rgba(255,255,255,0.06);border-radius:0.75rem;overflow:hidden;min-width:650px">
+        <thead><tr><th>Decision</th><th>Chosen</th><th>Alternative</th><th>Reason</th></tr></thead>
+        <tbody>
+          <tr><td class="text-white">NER model</td><td class="text-green-400">LayoutLMv3</td><td class="text-gray-500">DistilBERT text-only</td><td class="text-xs">Layout awareness critical — text-only failed</td></tr>
+          <tr><td class="text-white">Inference</td><td class="text-green-400">ONNX</td><td class="text-gray-500">PyTorch native</td><td class="text-xs">3–5× faster CPU, no GPU needed</td></tr>
+          <tr><td class="text-white">Primary LLM</td><td class="text-green-400">Groq llama-3.3-70b</td><td class="text-gray-500">OpenAI GPT-4o</td><td class="text-xs">Groq free tier generous; OpenAI no free tier</td></tr>
+          <tr><td class="text-white">Secondary LLM</td><td class="text-green-400">Gemini 2.0 Flash</td><td class="text-gray-500">Claude, Mistral</td><td class="text-xs">Google AI Studio free, reliable backup</td></tr>
+          <tr><td class="text-white">Database</td><td class="text-green-400">MongoDB Atlas</td><td class="text-gray-500">PostgreSQL</td><td class="text-xs">Document store maps to extracted JSON</td></tr>
+          <tr><td class="text-white">OCR</td><td class="text-green-400">EasyOCR</td><td class="text-gray-500">PaddleOCR, Tesseract</td><td class="text-xs">Easy install, CPU-friendly, good on receipts</td></tr>
+          <tr><td class="text-white">Training scope</td><td class="text-green-400">200 samples, 3 epochs</td><td class="text-gray-500">Full dataset</td><td class="text-xs">Feasible on free Colab in ~20 min</td></tr>
+          <tr><td class="text-white">QA approach</td><td class="text-green-400">Direct LLM + grounding</td><td class="text-gray-500">RAG / vector search</td><td class="text-xs">Overkill for single-doc QA; simpler & safer</td></tr>
+          <tr><td class="text-white">Confidence threshold</td><td class="text-green-400">0.75 (configurable)</td><td class="text-gray-500">Hard-coded</td><td class="text-xs">Tunable via .env without code changes</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 14 — Challenges -->
+<div class="slide" data-slide="14">
+  <div class="slide-inner">
+    <div class="anim-item"><span class="tag tag-orange">Challenges</span></div>
+    <h2 class="anim-item font-oswald text-4xl md:text-5xl font-400 tracking-tight mt-4">How They Were Solved</h2>
+    <div class="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div class="anim-item p-4 rounded-xl" style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06)">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-xs text-red-400 font-mono bg-red-500/10 px-2 py-0.5 rounded">1</span>
+          <p class="text-sm text-white font-medium">Text-only NER failed</p>
+        </div>
+        <p class="text-xs text-gray-500">DistilBERT couldn't distinguish "334,000" as total vs price</p>
+        <p class="text-xs text-green-400 mt-2">→ Switched to LayoutLMv3 (text + bbox + image)</p>
+      </div>
+      <div class="anim-item p-4 rounded-xl" style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06)">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-xs text-red-400 font-mono bg-red-500/10 px-2 py-0.5 rounded">2</span>
+          <p class="text-sm text-white font-medium">ONNX rejected bbox inputs</p>
+        </div>
+        <p class="text-xs text-gray-500">ORTModelForTokenClassification rejected bbox and pixel_values</p>
+        <p class="text-xs text-green-400 mt-2">→ Used ORTModelForCustomTasks + manual input filtering</p>
+      </div>
+      <div class="anim-item p-4 rounded-xl" style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06)">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-xs text-red-400 font-mono bg-red-500/10 px-2 py-0.5 rounded">3</span>
+          <p class="text-sm text-white font-medium">No TOTAL/VENDOR predictions</p>
+        </div>
+        <p class="text-xs text-gray-500">200-sample subset underrepresents these labels</p>
+        <p class="text-xs text-green-400 mt-2">→ Smart heuristics: derive from PRICE/MENU + LLM correction</p>
+      </div>
+      <div class="anim-item p-4 rounded-xl" style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06)">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-xs text-red-400 font-mono bg-red-500/10 px-2 py-0.5 rounded">4</span>
+          <p class="text-sm text-white font-medium">Groq model decommissioned</p>
+        </div>
+        <p class="text-xs text-gray-500">llama3-8b-8192 was deprecated mid-development</p>
+        <p class="text-xs text-green-400 mt-2">→ Migrated to llama-3.3-70b-versatile (better anyway)</p>
+      </div>
+      <div class="anim-item p-4 rounded-xl" style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06)">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-xs text-red-400 font-mono bg-red-500/10 px-2 py-0.5 rounded">5</span>
+          <p class="text-sm text-white font-medium">Google AI SDK deprecated</p>
+        </div>
+        <p class="text-xs text-gray-500">google.generativeai package end-of-life</p>
+        <p class="text-xs text-green-400 mt-2">→ Migrated to new google-genai SDK + gemini-2.0-flash</p>
+      </div>
+      <div class="anim-item p-4 rounded-xl" style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06)">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-xs text-red-400 font-mono bg-red-500/10 px-2 py-0.5 rounded">6</span>
+          <p class="text-sm text-white font-medium">CORS blocking frontend</p>
+        </div>
+        <p class="text-xs text-gray-500">Backend on port 3000, Vite on 5173</p>
+        <p class="text-xs text-green-400 mt-2">→ CORS_ORIGIN configurable via .env</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 15 — Limitations & Future -->
+<div class="slide" data-slide="15">
+  <div class="slide-inner">
+    <div class="anim-item"><span class="tag">Outlook</span></div>
+    <h2 class="anim-item font-oswald text-4xl md:text-5xl font-400 tracking-tight mt-4">Limitations & Future</h2>
+    <div class="two-col mt-5">
+      <div>
+        <p class="anim-item text-xs text-gray-500 uppercase tracking-wider font-medium mb-3">Current Limitations</p>
+        <table class="anim-item table-custom" style="border:1px solid rgba(255,255,255,0.06);border-radius:0.75rem;overflow:hidden">
+          <thead><tr><th>Limitation</th><th>Fix</th></tr></thead>
+          <tbody>
+            <tr><td class="text-xs">200-sample subset → DATE/ID underfit</td><td class="text-xs text-green-400">Train on full CORD</td></tr>
+            <tr><td class="text-xs">BSON 16MB limit</td><td class="text-xs text-green-400">S3/GridFS for files</td></tr>
+            <tr><td class="text-xs">No authentication</td><td class="text-xs text-green-400">JWT or API key</td></tr>
+            <tr><td class="text-xs">Single-page PDF only</td><td class="text-xs text-green-400">PDF page splitting</td></tr>
+            <tr><td class="text-xs">OCR noise on low-quality images</td><td class="text-xs text-green-400">Deskew, contrast</td></tr>
+            <tr><td class="text-xs">No eval dashboard</td><td class="text-xs text-green-400">Metrics endpoint</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <p class="anim-item text-xs text-gray-500 uppercase tracking-wider font-medium mb-3">Future Improvements</p>
+        <ul class="anim-item check-list">
+          <li><i data-lucide="arrow-up-right" style="width:15px;height:15px"></i>Fine-tune on full CORD (800+ samples)</li>
+          <li><i data-lucide="arrow-up-right" style="width:15px;height:15px"></i>Image preprocessing (deskew, binarize, contrast)</li>
+          <li><i data-lucide="arrow-up-right" style="width:15px;height:15px"></i>Redis caching for repeated queries</li>
+          <li><i data-lucide="arrow-up-right" style="width:15px;height:15px"></i>Multi-user with document namespacing</li>
+          <li><i data-lucide="arrow-up-right" style="width:15px;height:15px"></i>Batch upload — multiple receipts at once</li>
+          <li><i data-lucide="arrow-up-right" style="width:15px;height:15px"></i>Export to CSV/Excel for business users</li>
+          <li><i data-lucide="arrow-up-right" style="width:15px;height:15px"></i>Confidence calibration per field type</li>
+          <li><i data-lucide="arrow-up-right" style="width:15px;height:15px"></i>Upgrade to LayoutLMv3-large</li>
+        </ul>
+      </div>
+    </div>
+    <div class="anim-item mt-6 p-5 rounded-xl text-center" style="background:rgba(22,163,74,0.06);border:1px solid rgba(22,163,74,0.2)">
+      <p class="font-oswald text-lg text-white mb-3 tracking-wide">Summary</p>
+      <div class="flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs text-gray-300">
+        <span class="flex items-center gap-1"><i data-lucide="check-circle" style="width:13px;height:13px;color:#16a34a"></i>Fine-tuned LayoutLMv3 on CORD</span>
+        <span class="flex items-center gap-1"><i data-lucide="check-circle" style="width:13px;height:13px;color:#16a34a"></i>Hybrid NER + LLM pipeline</span>
+        <span class="flex items-center gap-1"><i data-lucide="check-circle" style="width:13px;height:13px;color:#16a34a"></i>6 REST API endpoints</span>
+        <span class="flex items-center gap-1"><i data-lucide="check-circle" style="width:13px;height:13px;color:#16a34a"></i>React UI + live pipeline viz</span>
+        <span class="flex items-center gap-1"><i data-lucide="check-circle" style="width:13px;height:13px;color:#16a34a"></i>Grounded QA</span>
+        <span class="flex items-center gap-1"><i data-lucide="check-circle" style="width:13px;height:13px;color:#16a34a"></i>MongoDB + file preview</span>
+        <span class="flex items-center gap-1"><i data-lucide="check-circle" style="width:13px;height:13px;color:#16a34a"></i>HuggingFace Hub deployment</span>
+        <span class="flex items-center gap-1"><i data-lucide="check-circle" style="width:13px;height:13px;color:#16a34a"></i>Full documentation</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== END SLIDES ==================== -->
+
+<script>
+let current = 1;
+const total = 15;
+
+// Build dots
+const dotsEl = document.getElementById('dots');
+for (let i = 1; i <= total; i++) {
+  const d = document.createElement('div');
+  d.className = 'dot' + (i === 1 ? ' active' : '');
+  d.onclick = () => goTo(i);
+  dotsEl.appendChild(d);
+}
+
+function goTo(n) {
+  if (n < 1 || n > total || n === current) return;
+  const prev = document.querySelector('.slide.active');
+  if (prev) {
+    gsap.to(prev, { opacity: 0, duration: 0.25, onComplete: () => {
+      prev.classList.remove('active');
+      prev.style.visibility = 'hidden';
+    }});
+  }
+  setTimeout(() => {
+    const next = document.querySelector(`[data-slide="${n}"]`);
+    next.style.visibility = 'visible';
+    next.classList.add('active');
+    gsap.fromTo(next, { opacity: 0 }, { opacity: 1, duration: 0.3 });
+    current = n;
+    updateUI();
+    animateBars(n);
+  }, 260);
+}
+
+function goSlide(dir) { goTo(current + dir); }
+
+function updateUI() {
+  document.getElementById('slideNum').textContent = String(current).padStart(2,'0');
+  document.getElementById('progressBar').style.width = ((current / total) * 100) + '%';
+  document.getElementById('prevBtn').disabled = current === 1;
+  document.getElementById('nextBtn').disabled = current === total;
+  document.querySelectorAll('.dot').forEach((d, i) => {
+    d.classList.toggle('active', i + 1 === current);
+  });
+}
+
+function animateBars(n) {
+  if (n === 7) {
+    setTimeout(() => {
+      document.querySelectorAll('.f1-fill').forEach(bar => {
+        bar.style.width = bar.dataset.w + '%';
+      });
+    }, 400);
+  } else {
+    document.querySelectorAll('.f1-fill').forEach(bar => {
+      bar.style.width = '0';
+    });
+  }
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); goSlide(1); }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); goSlide(-1); }
+});
+
+// Touch swipe
+let touchStartX = 0;
+document.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; });
+document.addEventListener('touchend', e => {
+  const diff = touchStartX - e.changedTouches[0].clientX;
+  if (Math.abs(diff) > 50) goSlide(diff > 0 ? 1 : -1);
+});
+
+lucide.createIcons();
+updateUI();
+</script>
+</body>
+</html>
