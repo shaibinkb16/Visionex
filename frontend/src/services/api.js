@@ -1,7 +1,7 @@
 import axios from "axios";
 
 export const getApiBaseUrl = () =>
-  import.meta.env.VITE_API_URL || "https://shaibinkb-visionex-backend.hf.space";
+  import.meta.env.VITE_API_URL || "https://shaibinkb16082002-visionex-backend.hf.space";
 
 const api = axios.create({
   baseURL: getApiBaseUrl(),
