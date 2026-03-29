@@ -8,7 +8,12 @@ from ..utils.sanitize import sanitize
 from .storage import get_document_by_id, get_latest_document
 
 logger = logging.getLogger(__name__)
-_client = Groq(api_key=settings.GROQ_API_KEY)
+
+
+def _get_groq_client() -> Groq:
+    if not settings.GROQ_API_KEY:
+        raise RuntimeError("GROQ_API_KEY is not configured")
+    return Groq(api_key=settings.GROQ_API_KEY)
 
 
 async def answer_question(question: str, document_id: str | None = None) -> tuple[str, str]:
@@ -32,10 +37,16 @@ async def answer_question(question: str, document_id: str | None = None) -> tupl
     context = json.dumps(doc["extracted"], indent=2)
     clean_q = sanitize(question)
 
+    try:
+        client = _get_groq_client()
+    except Exception as e:
+        logger.warning("Groq client unavailable for QA: %s", e)
+        return "Question answering is unavailable because GROQ_API_KEY is not configured.", doc_id
+
     logger.info("Calling Groq for QA (llama-3.3-70b-versatile)...")
     t0 = time.monotonic()
 
-    resp = _client.chat.completions.create(
+    resp = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=[
             {

@@ -1,237 +1,58 @@
-# 🚀 Deployment
+# Deployment
 
-Live deployment links and status for Visionex project.
+This document contains the live production URLs for Visionex and the API endpoints used by the frontend.
 
-## Current Deployment Status
+## Live URLs
 
-| Component | Platform | Status | Link |
-|-----------|----------|--------|------|
-| **Frontend** | Vercel | 🔄 Pending | [Frontend App](https://visionex-frontend.vercel.app) |
-| **Backend API** | Hugging Face Spaces | 🟢 Building | [HF Spaces Backend](https://huggingface.co/spaces/ShaibinkB/visionex-backend) |
-| **Documentation** | GitHub Pages | ✅ Live | [Project Docs](https://shaibinkb16.github.io/Visionex/) |
+- Frontend (Vercel): https://frontend-omega-ten-28.vercel.app
+- Backend Base URL (HF Space runtime): https://shaibinkb16082002-visionex-backend.hf.space
+- Backend API Docs (Swagger): https://shaibinkb16082002-visionex-backend.hf.space/docs
+- Backend OpenAPI JSON: https://shaibinkb16082002-visionex-backend.hf.space/openapi.json
+- Backend Health: https://shaibinkb16082002-visionex-backend.hf.space/health
+- HF Space Page: https://huggingface.co/spaces/shaibinkb16082002/visionex-backend
 
----
+## API Endpoints
 
-## 🔗 API Endpoints
+Base URL:
 
-### Backend API (HF Spaces)
-```
-Base URL: https://huggingface.co/spaces/ShaibinkB/visionex-backend
-```
-
-**Available Endpoints:**
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/extract` | Upload image/PDF for extraction |
-| `GET` | `/documents` | List all extracted documents |
-| `GET` | `/documents/{id}` | Get specific document |
-| `POST` | `/query` | Ask question about document |
-| `GET` | `/health` | Health check |
-| `GET` | `/docs` | Interactive API documentation |
-
-### Example Usage
-
-```bash
-# Extract from image
-curl -X POST "https://huggingface.co/spaces/ShaibinkB/visionex-backend/extract" \
-  -F "file=@receipt.jpg"
-
-# Get documents
-curl "https://huggingface.co/spaces/ShaibinkB/visionex-backend/documents"
-
-# Health check
-curl "https://huggingface.co/spaces/ShaibinkB/visionex-backend/health"
+```text
+https://shaibinkb16082002-visionex-backend.hf.space
 ```
 
----
+Endpoints:
 
-## 🎯 Frontend
+- `POST /extract` - upload an image/pdf for extraction
+- `GET /extract/status/{request_id}` - check extraction status
+- `GET /documents` - list processed documents
+- `GET /documents/{document_id}/file` - fetch stored document file
+- `POST /query` - ask questions over extracted document data
+- `GET /health` - service health check
+- `GET /docs` - interactive Swagger UI
 
-**Vercel Deployment:**
-- URL: `https://visionex-frontend.vercel.app`
-- Repository: [shaibinkb16/Visionex](https://github.com/shaibinkb16/Visionex)
-- Branch: `main`
+## Frontend Configuration
 
-**Configuration:**
-```javascript
-// src/services/api.js
-const API_BASE_URL = "https://huggingface.co/spaces/ShaibinkB/visionex-backend";
-```
-
----
-
-## 🧠 Backend API
-
-**Hugging Face Spaces:**
-- URL: `https://huggingface.co/spaces/ShaibinkB/visionex-backend`
-- Repository: [ShaibinkB/visionex-backend](https://huggingface.co/spaces/ShaibinkB/visionex-backend)
-- SDK: Docker
-- Hardware: CPU Basic (2 vCPU + 16 GB RAM) — Free Tier
-
-**Features:**
-- 📄 OCR (EasyOCR)
-- 🧠 NER (LayoutLMv3 ONNX)
-- 💬 LLM Fallback (Groq + Gemini)
-- 📦 MongoDB Storage
-- ⚡ Rate Limiting
-- 🌐 CORS Support
-
-**Model Caching:**
-- First request: ~1-2 minutes (auto-downloads from HF Hub)
-- Subsequent requests: Instant (uses cache)
-
----
-
-## 🔐 Environment Configuration
-
-### Backend Secrets (HF Spaces)
-
-Set in **Settings → Repository Secrets**:
+The frontend should point to this backend URL:
 
 ```env
-MONGODB_URI=mongodb://your-connection-string
-GROQ_API_KEY=gsk_your_groq_key
-GEMINI_API_KEY=your_google_key
-HF_MODEL_ID=your_hf_model_id
-CONFIDENCE_THRESHOLD=0.75
-CORS_ORIGIN=https://visionex-frontend.vercel.app
-ENV=production
+VITE_API_URL=https://shaibinkb16082002-visionex-backend.hf.space
 ```
 
-### Frontend Environment (Vercel)
+Current frontend files already updated:
 
-Set in **Settings → Environment Variables**:
+- `frontend/src/services/api.js`
+- `frontend/.env.example`
 
-```env
-VITE_API_BASE_URL=https://huggingface.co/spaces/ShaibinkB/visionex-backend
-```
-
----
-
-## 📊 Architecture
-
-```
-┌─────────────────────────────┐
-│   Frontend (Vercel)         │
-│   - React + Vite            │
-│   - Modern UI/UX            │
-└──────────────┬──────────────┘
-               │ HTTPS
-               ▼
-┌─────────────────────────────┐
-│   Backend API (HF Spaces)   │
-│   - FastAPI                 │
-│   - Docker Container        │
-│                             │
-│  ┌─────────────────────┐    │
-│  │ OCR (EasyOCR)       │    │
-│  │ NER (LayoutLMv3)    │    │
-│  │ LLM (Groq/Gemini)   │    │
-│  └─────────────────────┘    │
-└──────────────┬──────────────┘
-               │
-               ▼
-        ┌─────────────┐
-        │  MongoDB    │
-        │  Database   │
-        └─────────────┘
-```
-
----
-
-## 🛠️ Deployment Instructions
-
-### Frontend (Vercel)
-
-1. **Connect GitHub**
-   - Go to [Vercel Dashboard](https://vercel.com)
-   - Import `shaibinkb16/Visionex` repository
-   - Root Directory: `frontend`
-   - Framework: Vite
-
-2. **Set Environment**
-   ```env
-   VITE_API_BASE_URL=https://huggingface.co/spaces/ShaibinkB/visionex-backend
-   ```
-
-3. **Deploy**
-   - Auto-deploys on push to `main`
-
-### Backend (HF Spaces)
-
-1. **Create Space**
-   - Go to [HF Spaces](https://huggingface.co/spaces)
-   - Create new Space with Docker SDK
-   - Connect to `ShaibinkB/visionex-backend` repo
-
-2. **Add Secrets**
-   - Settings → Repository Secrets
-   - Add all environment variables
-
-3. **Deploy**
-   - Auto-builds and deploys on push
-
----
-
-## 🔍 Monitoring & Logs
-
-### Backend Logs
-```bash
-# View HF Spaces build logs
-# Go to: https://huggingface.co/spaces/ShaibinkB/visionex-backend/logs
-```
-
-### Frontend Logs
-```bash
-# View Vercel deployment logs
-# Go to: https://vercel.com/shaibinkb16/visionex/deployments
-```
-
----
-
-## 📱 Testing the API
-
-### Using cURL
+## Verification Commands
 
 ```bash
-# Test extraction
-curl -X POST "https://huggingface.co/spaces/ShaibinkB/visionex-backend/extract" \
-  -H "Content-Type: multipart/form-data" \
-  -F "file=@test_image.jpg"
-
-# Get all documents
-curl "https://huggingface.co/spaces/ShaibinkB/visionex-backend/documents"
-
-# Health check
-curl "https://huggingface.co/spaces/ShaibinkB/visionex-backend/health"
+curl https://shaibinkb16082002-visionex-backend.hf.space/health
+curl https://shaibinkb16082002-visionex-backend.hf.space/openapi.json
 ```
 
-### Using API Docs
+## Deployment Notes
 
-Visit: `https://huggingface.co/spaces/ShaibinkB/visionex-backend/docs`
+- Backend is hosted on Hugging Face Spaces (Docker).
+- Frontend is hosted on Vercel.
+- If backend URL changes, update `VITE_API_URL` in Vercel Environment Variables and redeploy frontend.
 
-Interactive Swagger UI for testing all endpoints.
-
----
-
-## 🐛 Troubleshooting
-
-| Issue | Solution |
-|-------|----------|
-| API timeout | First request downloads models (wait 1-2 min) |
-| CORS error | Check `CORS_ORIGIN` in backend secrets |
-| Model not found | Verify `HF_MODEL_ID` in secrets |
-| 503 Service Unavailable | HF Space still building, check logs |
-
----
-
-## 📞 Support
-
-- **GitHub Issues**: [Create issue](https://github.com/shaibinkb16/Visionex/issues)
-- **HF Spaces**: [Community tab](https://huggingface.co/spaces/ShaibinkB/visionex-backend/community)
-
----
-
-**Last Updated:** March 29, 2026  
-**Status:** 🟢 Production Ready
+Last Updated: 2026-03-29

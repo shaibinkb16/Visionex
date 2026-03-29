@@ -9,7 +9,7 @@ from slowapi.errors import RateLimitExceeded
 
 from .core.config import settings
 from .core.dependencies import connect_db, close_db
-from .services.extraction import load_model
+from .services.extraction import load_model, is_model_loaded
 from .api import documents, extract, query, health
 
 # ── Logging setup ────────────────────────────────────────────────────────────
@@ -56,7 +56,10 @@ async def lifespan(app: FastAPI):
     try:
         logger.info("Loading NER model...")
         load_model()
-        logger.info("NER model loaded ✓")
+        if is_model_loaded():
+            logger.info("NER model loaded ✓")
+        else:
+            logger.warning("NER model unavailable — rule-based extraction enabled")
     except Exception as e:
         logger.warning("NER model load failed: %s — rule-based extraction enabled", e)
 

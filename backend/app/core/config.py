@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     MONGODB_URI: Optional[str] = None
     
     # Optional with defaults
-    HF_MODEL_ID: str = "your-username/cord-ner-distilbert-onnx"
+    HF_MODEL_ID: str = "ShaibinkB/cord-layoutlmv3-onnx"
     CONFIDENCE_THRESHOLD: float = 0.75
     CORS_ORIGIN: str = "http://localhost:3000"
     ENV: str = "development"

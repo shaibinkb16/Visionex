@@ -147,6 +147,14 @@ def load_model() -> None:
     global _model, _processor
     logger.info("Loading LayoutLMv3 ONNX model: %s", settings.HF_MODEL_ID)
     t0 = time.perf_counter()
+    if not settings.HF_MODEL_ID or "your-username/" in settings.HF_MODEL_ID:
+        logger.warning(
+            "HF_MODEL_ID is a placeholder (%s). Skipping NER model load.",
+            settings.HF_MODEL_ID,
+        )
+        _model = None
+        _processor = None
+        return
     try:
         cfg = AutoConfig.from_pretrained(settings.HF_MODEL_ID)
         model_type = str(getattr(cfg, "model_type", "")).lower()
@@ -181,7 +189,7 @@ def load_model() -> None:
             list(_model.input_names.keys()),
         )
     except Exception as exc:
-        logger.exception("Model load failed: %s", exc)
+        logger.error("Model load failed: %s", exc)
         _model = None
         _processor = None
 
