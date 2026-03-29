@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Secrets — never commit
+.env
+backend/.env
+
+# Model cache & ONNX artifacts
+*.onnx
+cord-ner*/
+cord-layoutlmv3*/
+
+# Node
+node_modules/
+frontend/build/
+frontend/dist/
+
+# Debug scripts
+backend/debug_model.py
+backend/debug_model2.py
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,12 @@
+# Optional: fine-tune LayoutLMv3 on CORD (see train_cord_layoutlmv3.py)
+# Install: pip install -r requirements-train.txt
+torch>=2.1
+transformers>=4.41
+datasets
+accelerate
+seqeval
+optimum[onnxruntime]>=1.18
+onnx
+onnxruntime
+Pillow
+numpy

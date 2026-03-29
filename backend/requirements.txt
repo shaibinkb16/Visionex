@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+python-dotenv
+pydantic
+pydantic-settings
+pymongo
+motor
+easyocr
+transformers
+optimum[onnxruntime]
+onnxruntime
+groq
+google-generativeai
+slowapi
+python-multipart
+Pillow
+numpy
