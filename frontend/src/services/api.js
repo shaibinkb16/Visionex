@@ -1,6 +1,7 @@
 import axios from "axios";
 
-export const getApiBaseUrl = () => import.meta.env.VITE_API_URL || "http://localhost:8000";
+export const getApiBaseUrl = () =>
+  import.meta.env.VITE_API_URL || "https://shaibinkb-visionex-backend.hf.space";
 
 const api = axios.create({
   baseURL: getApiBaseUrl(),
