@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     CONFIDENCE_THRESHOLD: float = 0.75
     CORS_ORIGIN: str = "http://localhost:3000"
     ENV: str = "development"
+    
+    # LLM Model Configuration
+    GROQ_MODEL_ID: str = "llama-3.3-70b-versatile"  # Groq model for extraction & QA
+    GEMINI_MODEL_ID: str = "gemini-2.0-flash"  # Google Gemini model for fallback
 
     class Config:
         env_file = ".env"

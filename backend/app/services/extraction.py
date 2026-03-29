@@ -102,9 +102,6 @@ _TOTAL_LINE_PAT = re.compile(
 _groq_client = None
 _gemini_client = None
 
-GROQ_MODEL = "llama-3.3-70b-versatile"
-GEMINI_MODEL = "gemini-2.0-flash"
-
 
 def _get_groq_client():
     """Lazy initialize Groq client only if API key is available."""
@@ -236,11 +233,11 @@ def _normalize_ocr_text(text: str) -> str:
 
 
 async def _groq_extract(text: str) -> dict:
-    logger.info("Calling Groq fallback...")
+    logger.info(f"Calling Groq fallback ({settings.GROQ_MODEL_ID})...")
     try:
         client = _get_groq_client()
         resp = client.chat.completions.create(
-            model=GROQ_MODEL,
+            model=settings.GROQ_MODEL_ID,
             messages=[{"role": "user", "content": _LLM_PROMPT.format(text=text)}],
             temperature=0,
         )
@@ -250,11 +247,11 @@ async def _groq_extract(text: str) -> dict:
 
 
 async def _gemini_extract(text: str) -> dict:
-    logger.info("Calling Gemini fallback...")
+    logger.info(f"Calling Gemini fallback ({settings.GEMINI_MODEL_ID})...")
     try:
         client = _get_gemini_client()
         resp = client.models.generate_content(
-            model=GEMINI_MODEL,
+            model=settings.GEMINI_MODEL_ID,
             contents=_LLM_PROMPT.format(text=text),
             config=types.GenerateContentConfig(temperature=0),
         )

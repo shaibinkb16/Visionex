@@ -43,11 +43,11 @@ async def answer_question(question: str, document_id: str | None = None) -> tupl
         logger.warning("Groq client unavailable for QA: %s", e)
         return "Question answering is unavailable because GROQ_API_KEY is not configured.", doc_id
 
-    logger.info("Calling Groq for QA (llama-3.3-70b-versatile)...")
+    logger.info(f"Calling Groq for QA ({settings.GROQ_MODEL_ID})...")
     t0 = time.monotonic()
 
     resp = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model=settings.GROQ_MODEL_ID,
         messages=[
             {
                 "role": "system",

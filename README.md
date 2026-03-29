@@ -153,12 +153,16 @@ Open http://localhost:5173 and start extracting receipts.
 | **OCR** | EasyOCR | Text extraction + bounding boxes from images/PDFs |
 | **NER** | LayoutLMv3 (ONNX) | Layout-aware token classification for structured fields |
 | **Rules** | Regex + heuristics | Vendor, total, date, receipt ID parsing fallback |
-| **LLM (Extraction)** | Groq Llama 3.3 70B | Fill missing fields via JSON prompt |
-| **LLM (QA)** | Groq Llama 3.3 70B | Answer questions grounded in extracted data |
-| **LLM (Fallback)** | Google Gemini 2.0 Flash | Secondary LLM if Groq unavailable |
+| **LLM (Extraction)** | Groq llama-3.3-70b-versatile* | Fill missing extraction fields via JSON prompt |
+| **LLM (QA)** | Groq llama-3.3-70b-versatile* | Answer questions grounded in extracted data |
+| **LLM (Fallback)** | Google Gemini 2.0 Flash* | Secondary LLM if Groq unavailable |
 | **Storage** | MongoDB Atlas | Document persistence, extracted fields, raw file bytes |
 | **Hosting (Backend)** | HF Spaces (Docker) | Kubernetes-less ML serving, auto-scaling |
 | **Hosting (Frontend)** | Vercel | Edge-cached React SPA, auto-deployments |
+
+**\* Configurable via environment variables:**
+- `GROQ_MODEL_ID` (default: `llama-3.3-70b-versatile`) — other options: `llama-3.1-70b-versatile`, `llama-2-70b`
+- `GEMINI_MODEL_ID` (default: `gemini-2.0-flash`) — other options: `gemini-1.5-pro`, `gemini-1.5-flash`
 
 ---
 
@@ -624,6 +628,13 @@ MONGODB_URI=mongodb://localhost:27017/doc_extraction
 # Model Configuration
 HF_MODEL_ID=ShaibinkB/cord-layoutlmv3-onnx
 CONFIDENCE_THRESHOLD=0.75
+
+# LLM Model Configuration (for extraction & QA)
+# Groq models: llama-3.3-70b-versatile (default, fastest), llama-3.1-70b-versatile, llama-2-70b
+GROQ_MODEL_ID=llama-3.3-70b-versatile
+
+# Gemini models: gemini-2.0-flash (default), gemini-1.5-pro, gemini-1.5-flash
+GEMINI_MODEL_ID=gemini-2.0-flash
 
 # CORS - MUST match your frontend URL
 # For local frontend on port 5173:
